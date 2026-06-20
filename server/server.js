@@ -99,6 +99,10 @@ const server = new Server({
   port: Number(PORT),
   address: '0.0.0.0',
   name: 'vergaderingen-collab',
+  // Doc direct uit RAM lossen zodra de laatste verbinding weg is → geen "stale" document in
+  // geheugen (anders blijft oude/test-inhoud hangen ondanks een lege DB). Bij heropenen wordt
+  // vers uit Mongo/MySQL geladen.
+  unloadImmediately: true,
 
   // Tijdelijk debug-endpoint (gated): GET /debug?key=<COLLAB_SNAPSHOT_SECRET> → bevestigt welke
   // secrets de DRAAIENDE server ziet, zonder logs te hoeven lezen. Verwijderbaar na go-live.

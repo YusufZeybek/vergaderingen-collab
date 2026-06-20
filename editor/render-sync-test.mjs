@@ -18,7 +18,7 @@ const mk = (sub, name, color) => jwt({ sub, name, color, doc: DOC, iat: now, exp
 
 function client(token) {
   const doc = new Y.Doc()
-  const provider = new HocuspocusProvider({ url: WS, name: DOC, document: doc, token, WebSocketPolyfill: globalThis.WebSocket })
+  const provider = new HocuspocusProvider({ url: WS, name: DOC, document: doc, token, parameters: { token }, WebSocketPolyfill: globalThis.WebSocket })
   return { doc, provider, text: doc.getText('t') }
 }
 const synced = (p, label) => new Promise((res, rej) => {
