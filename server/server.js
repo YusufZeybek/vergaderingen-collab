@@ -52,13 +52,13 @@ const extensions = [
   Image,
 ]
 
-const {
-  PORT = '10000',
-  MONGO_URI,
-  COLLAB_JWT_SECRET,
-  COLLAB_SNAPSHOT_SECRET,
-  PHP_BRIDGE_URL,
-} = process.env
+// .trim() = robuust tegen een onzichtbare spatie/newline die bij plakken in Render env kan sluipen
+// (zou anders de HMAC-vergelijking breken → permission-denied).
+const PORT = process.env.PORT || '10000'
+const MONGO_URI = (process.env.MONGO_URI || '').trim()
+const COLLAB_JWT_SECRET = (process.env.COLLAB_JWT_SECRET || '').trim()
+const COLLAB_SNAPSHOT_SECRET = (process.env.COLLAB_SNAPSHOT_SECRET || '').trim()
+const PHP_BRIDGE_URL = (process.env.PHP_BRIDGE_URL || '').trim()
 
 for (const [k, v] of Object.entries({ MONGO_URI, COLLAB_JWT_SECRET, COLLAB_SNAPSHOT_SECRET, PHP_BRIDGE_URL })) {
   if (!v) { console.error(`[FATAL] env ${k} ontbreekt`); process.exit(1) }
@@ -116,6 +116,7 @@ const server = new Server({
     try {
       payload = jwt.verify(token, COLLAB_JWT_SECRET, { algorithms: ['HS256'] })
     } catch (e) {
+      console.warn('[auth] JWT verify faalde:', e.message, '| secret-len', COLLAB_JWT_SECRET.length, '| token-len', token ? token.length : 0)
       throw new Error('Not authorized')
     }
     // Token bindt aan één doc: voorkom dat een token voor meeting A op meeting B werkt.
