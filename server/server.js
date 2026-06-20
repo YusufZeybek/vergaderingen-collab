@@ -69,6 +69,9 @@ const mdb = new MongodbPersistence(MONGO_URI, { collectionName: 'yjs-docs', flus
 // Debounce per documentnaam voor de (duurdere) HTML→MySQL-snapshot.
 const snapshotTimers = new Map()
 
+// Diagnostiek: onthoud de laatste auth-poging zodat /debug 'm kan tonen (geen logs nodig).
+let lastAuth = null
+
 /** Haal de bestaande MySQL-HTML op voor de eenmalige seed van een leeg doc. */
 async function fetchStreamHtml(documentName) {
   const url = `${PHP_BRIDGE_URL}?action=load&doc=${encodeURIComponent(documentName)}`
@@ -113,6 +116,7 @@ const server = new Server({
         snapshotLen: COLLAB_SNAPSHOT_SECRET.length,
         mongoHost: (MONGO_URI.match(/@([^/?]+)/) || [])[1] || null,
         bridge: PHP_BRIDGE_URL,
+        lastAuth, // laatste auth-poging (kreeg de server een token? lengte? foutreden?)
       }))
       return reject()
     })
@@ -132,19 +136,27 @@ const server = new Server({
   ],
 
   // JWT valideren (HS256, gedeeld geheim met PHP). Throw = connectie geweigerd.
-  async onAuthenticate({ token, documentName }) {
+  async onAuthenticate({ token, documentName, requestParameters }) {
+    const tlen = token ? String(token).length : 0
+    // Fallback: token mag ook als query-param ?token= meekomen (sommige proxies leveren de
+    // Hocuspocus-auth-message minder betrouwbaar af dan een URL-param).
+    let tok = token
+    if ((!tok || tlen === 0) && requestParameters && typeof requestParameters.get === 'function') {
+      tok = requestParameters.get('token') || tok
+    }
+    const usedLen = tok ? String(tok).length : 0
     let payload
     try {
-      payload = jwt.verify(token, COLLAB_JWT_SECRET, { algorithms: ['HS256'] })
+      payload = jwt.verify(tok, COLLAB_JWT_SECRET, { algorithms: ['HS256'] })
     } catch (e) {
-      console.warn('[auth] JWT verify faalde:', e.message, '| secret-len', COLLAB_JWT_SECRET.length, '| token-len', token ? token.length : 0)
+      lastAuth = { ok: false, tokenLen: tlen, paramLen: requestParameters && requestParameters.get ? (requestParameters.get('token') || '').length : 0, usedLen, docName: documentName, error: e.message, ts: new Date().toISOString() }
+      console.warn('[auth] JWT verify faalde:', e.message, '| secret-len', COLLAB_JWT_SECRET.length, '| token-len', tlen, '| param-len', lastAuth.paramLen)
       throw new Error('Not authorized')
     }
-    // Doc-binding: NIET blokkeren (Render kan de ':' in de doc-naam anders in het pad encoderen
-    // → vals-negatief). Enkel loggen voor de zekerheid; de echte gate is de JWT-handtekening.
     if (payload.doc && payload.doc !== documentName) {
       console.warn('[auth] doc-verschil (toegestaan):', JSON.stringify(payload.doc), 'vs', JSON.stringify(documentName))
     }
+    lastAuth = { ok: true, tokenLen: tlen, usedLen, docName: documentName, name: payload.name, ts: new Date().toISOString() }
     console.log('[auth] OK voor', payload.name, '| doc', JSON.stringify(documentName))
     return { user: { id: payload.sub, name: payload.name || 'Onbekend', color: payload.color || '#1182A4' } }
   },
