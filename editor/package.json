@@ -1,0 +1,29 @@
+{
+  "name": "vergaderingen-collab-editor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vanilla Tiptap v3 + Yjs editor-bundle voor de Vergaderingen-module (geladen via <script>)",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch"
+  },
+  "dependencies": {
+    "@hocuspocus/provider": "4.3.0",
+    "@tiptap/core": "3.27.1",
+    "@tiptap/starter-kit": "3.27.1",
+    "@tiptap/extension-collaboration": "3.27.1",
+    "@tiptap/extension-collaboration-caret": "3.27.1",
+    "@tiptap/extension-highlight": "3.27.1",
+    "@tiptap/extension-text-style": "3.27.1",
+    "@tiptap/extension-color": "3.27.1",
+    "@tiptap/extension-task-list": "3.27.1",
+    "@tiptap/extension-task-item": "3.27.1",
+    "@tiptap/extension-image": "3.27.1",
+    "@tiptap/extension-underline": "3.27.1",
+    "yjs": "13.6.31"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}

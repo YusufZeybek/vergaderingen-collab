@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <title>Collab editor — demo</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 760px; margin: 30px auto; padding: 0 16px; }
+    #status { font-size: 13px; color: #888; }
+    .ProseMirror { border: 1px solid #ccc; border-radius: 8px; min-height: 260px; padding: 14px; outline: none; }
+    .ProseMirror:focus { border-color: #1182A4; }
+    /* Tiptap CollaborationCaret (v3) */
+    .collaboration-carets__caret { border-left: 1px solid; border-right: 1px solid; margin-left: -1px; margin-right: -1px; position: relative; word-break: normal; pointer-events: none; }
+    .collaboration-carets__label { border-radius: 3px 3px 3px 0; color: #fff; font-size: 11px; font-weight: 600; left: -1px; line-height: 1; padding: 2px 5px; position: absolute; top: -1.3em; user-select: none; white-space: nowrap; }
+    /* checklists */
+    ul[data-type="taskList"] { list-style: none; padding: 0; }
+    ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
+    mark { border-radius: 2px; padding: 0 1px; }
+    h2 { margin: 12px 0 4px; }
+  </style>
+</head>
+<body>
+  <h1>Collab demo</h1>
+  <p>Open deze pagina in <b>twee tabs</b> (verschillende namen via <code>?name=</code>). Typ in beide → je ziet elkaars cursor en gelijktijdig typen convergeert.</p>
+  <div id="status">verbinden…</div>
+  <p>
+    <button data-cmd="bold"><b>B</b></button>
+    <button data-cmd="italic"><i>I</i></button>
+    <button data-cmd="h2">H2</button>
+    <button data-cmd="task">☑ taak</button>
+    <button data-cmd="hl">markeer</button>
+    <button data-cmd="color">kleur</button>
+  </p>
+  <div id="editor"></div>
+
+  <script src="dist/mtg-collab-editor.min.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const name = params.get('name') || ('Gast-' + Math.floor(Math.random() * 99));
+    const c = MtgCollabEditor.mount({
+      element: document.getElementById('editor'),
+      wsUrl: 'ws://localhost:1234',
+      docName: 'demo:1',
+      token: 'dev',                       // dev-server negeert auth
+      user: { name },
+      onStatus: (s) => document.getElementById('status').textContent = 'status: ' + s + ' — jij: ' + name,
+    });
+    const map = {
+      bold: () => c.cmd.bold(), italic: () => c.cmd.italic(),
+      h2: () => c.cmd.heading(2), task: () => c.cmd.taskList(),
+      hl: () => c.cmd.highlight('#fff3a0'), color: () => c.cmd.color('#1182A4'),
+    };
+    document.querySelectorAll('button[data-cmd]').forEach(b =>
+      b.addEventListener('click', () => map[b.dataset.cmd]()));
+  </script>
+</body>
+</html>

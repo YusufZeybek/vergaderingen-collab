@@ -1,0 +1,24 @@
+# Render Blueprint (repo-root) voor de Hocuspocus collab-server.
+# In Render: New → Blueprint → kies deze repo → Render leest dit bestand.
+# WebSockets werken out-of-the-box op een Render Web Service. Regio Frankfurt (EU) voor GDPR.
+services:
+  - type: web
+    name: vergaderingen-collab
+    runtime: node
+    region: frankfurt
+    plan: free               # GRATIS. Slaapt na 15 min idle → keep-alive ping (cron-job.org of
+                             # Combell-cron) elke ~10 min op de URL houdt hem wakker (750 gratis
+                             # uur/mnd dekt 1 service 24/7). Upgrade naar 'starter' ($7) = altijd-wakker.
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: MONGO_URI
+        sync: false          # zet de waarde in het Render-dashboard (secret)
+      - key: COLLAB_JWT_SECRET
+        sync: false
+      - key: COLLAB_SNAPSHOT_SECRET
+        sync: false
+      - key: PHP_BRIDGE_URL
+        value: https://personeel.kvcwesterlo.be/modules/vergaderingen/collab.php
