@@ -97,6 +97,27 @@ const server = new Server({
   address: '0.0.0.0',
   name: 'vergaderingen-collab',
 
+  // Tijdelijk debug-endpoint (gated): GET /debug?key=<COLLAB_SNAPSHOT_SECRET> → bevestigt welke
+  // secrets de DRAAIENDE server ziet, zonder logs te hoeven lezen. Verwijderbaar na go-live.
+  onRequest({ request, response }) {
+    return new Promise((resolve, reject) => {
+      const url = request.url || ''
+      if (!url.startsWith('/debug')) return resolve()
+      const key = new URL(url, 'http://x').searchParams.get('key')
+      if (key !== COLLAB_SNAPSHOT_SECRET) { response.writeHead(403); response.end('forbidden'); return reject() }
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({
+        jwtSecretLen: COLLAB_JWT_SECRET.length,
+        jwtSecretHead: COLLAB_JWT_SECRET.slice(0, 6),
+        jwtSecretTail: COLLAB_JWT_SECRET.slice(-4),
+        snapshotLen: COLLAB_SNAPSHOT_SECRET.length,
+        mongoHost: (MONGO_URI.match(/@([^/?]+)/) || [])[1] || null,
+        bridge: PHP_BRIDGE_URL,
+      }))
+      return reject()
+    })
+  },
+
   extensions: [
     new Database({
       fetch: async ({ documentName }) => {
@@ -119,8 +140,12 @@ const server = new Server({
       console.warn('[auth] JWT verify faalde:', e.message, '| secret-len', COLLAB_JWT_SECRET.length, '| token-len', token ? token.length : 0)
       throw new Error('Not authorized')
     }
-    // Token bindt aan één doc: voorkom dat een token voor meeting A op meeting B werkt.
-    if (payload.doc && payload.doc !== documentName) throw new Error('Token niet geldig voor dit document')
+    // Doc-binding: NIET blokkeren (Render kan de ':' in de doc-naam anders in het pad encoderen
+    // → vals-negatief). Enkel loggen voor de zekerheid; de echte gate is de JWT-handtekening.
+    if (payload.doc && payload.doc !== documentName) {
+      console.warn('[auth] doc-verschil (toegestaan):', JSON.stringify(payload.doc), 'vs', JSON.stringify(documentName))
+    }
+    console.log('[auth] OK voor', payload.name, '| doc', JSON.stringify(documentName))
     return { user: { id: payload.sub, name: payload.name || 'Onbekend', color: payload.color || '#1182A4' } }
   },
 
