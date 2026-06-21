@@ -171,12 +171,31 @@ const server = new Server({
     let html = ''
     try { html = await fetchStreamHtml(documentName) } catch (e) { console.warn('[seed]', e.message) }
     if (html && html.trim()) {
-      try {
-        const json = generateJSON(html, extensions)
-        const seeded = TiptapTransformer.toYdoc(json, FIELD, extensions)
-        Y.applyUpdate(document, Y.encodeStateAsUpdate(seeded))
-      } catch (e) {
-        console.warn(`[seed] HTML→Ydoc mislukt voor ${documentName}:`, e.message)
+      let json = null
+      try { json = generateJSON(html, extensions) }
+      catch (e) { console.warn(`[seed] generateJSON faalde voor ${documentName}:`, e.message) }
+      // VANGNET: als parsen faalt of leeg blijft maar er WAS tekst → behoud minstens de tekst als
+      // alinea's (split op block-grenzen). Zo opent geen enkele oude vergadering ooit leeg.
+      const hasContent = json && Array.isArray(json.content) && json.content.length > 0
+      if (!hasContent) {
+        const lines = html
+          .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+          .split('\n').map(s => s.trim()).filter(Boolean)
+        if (lines.length) {
+          json = { type: 'doc', content: lines.map(line => ({ type: 'paragraph', content: [{ type: 'text', text: line }] })) }
+          console.warn(`[seed] fallback-tekst gebruikt voor ${documentName} (${lines.length} regels)`)
+        }
+      }
+      if (json && Array.isArray(json.content) && json.content.length) {
+        try {
+          const seeded = TiptapTransformer.toYdoc(json, FIELD, extensions)
+          Y.applyUpdate(document, Y.encodeStateAsUpdate(seeded))
+        } catch (e) {
+          console.warn(`[seed] toYdoc mislukt voor ${documentName}:`, e.message)
+        }
       }
     }
     return document
