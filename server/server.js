@@ -41,6 +41,26 @@ import Underline from '@tiptap/extension-underline'
 
 const FIELD = 'default' // XmlFragment-naam die Tiptap Collaboration standaard gebruikt
 
+// Image met width + data-align — MOET overeenkomen met de client (editor.js) zodat de breedte/
+// uitlijning de HTML-snapshot overleeft (anders strippen generateHTML/generateJSON ze).
+const ImageWithAttrs = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el) => { const w = el.getAttribute('width'); return w ? parseInt(w, 10) : null },
+        renderHTML: (a) => (a.width ? { width: a.width } : {}),
+      },
+      align: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-align'),
+        renderHTML: (a) => (a.align ? { 'data-align': a.align } : {}),
+      },
+    }
+  },
+})
+
 const extensions = [
   StarterKit.configure({ undoRedo: false }), // v3-naam! Yjs doet de undo/redo-historie
   Underline,
@@ -49,7 +69,7 @@ const extensions = [
   Color,
   TaskList,
   TaskItem.configure({ nested: true }),
-  Image,
+  ImageWithAttrs,
 ]
 
 // .trim() = robuust tegen een onzichtbare spatie/newline die bij plakken in Render env kan sluipen
