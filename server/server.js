@@ -12,10 +12,13 @@
  *
  * Documentnaam-conventie: "meeting:<id>" (1 Yjs-doc per vergadering).
  *
- * Sinds 5 okt 2026 ook "vacgesprek:<sollicitatie-id>": de live notities van een sollicitatiegesprek
- * (Vacatures-module). Eén doc per gesprek met een XmlFragment per vraag ("v_<vraag-id>"). Die docs
- * hebben een eigen PHP-bridge (VAC_BRIDGE_URL) en een STRIKTE doc-binding in onAuthenticate: het
- * gaat om kandidatendossiers, een token voor iets anders mag er nooit binnen.
+ * Sinds 5 okt 2026 ook "vacgesprek:<sollicitatie-id>:u<user-id>": de live notities van één
+ * persoon bij een sollicitatiegesprek (Vacatures-module), met een XmlFragment per vraag
+ * ("v_<vraag-id>"). Iedereen aan tafel heeft zo een EIGEN document: je schrijft enkel in het jouwe
+ * en leest dat van je collega's live mee. Het token is gebonden aan het gesprek
+ * ("vacgesprek:<id>"); op het eigen document is de verbinding schrijvend, op dat van een collega
+ * ALLEEN-LEZEN (connectionConfig.readOnly: de server weigert dan elke wijziging). Eigen PHP-bridge
+ * (VAC_BRIDGE_URL). Een token voor iets anders komt er nooit binnen, en omgekeerd.
  *
  * Env (zie .env.example):
  *   PORT                     (Render zet dit; default 10000)
@@ -89,8 +92,9 @@ const PHP_BRIDGE_URL = (process.env.PHP_BRIDGE_URL || '').trim()
 const VAC_BRIDGE_URL = (process.env.VAC_BRIDGE_URL
   || PHP_BRIDGE_URL.replace('/modules/vergaderingen/collab.php', '/modules/vacatures/collab.php')).trim()
 const VAC = 'vacgesprek:'
+const VAC_DOC = /^vacgesprek:(\d+):u(\d+)$/
 const VAC_FIELD = /^v_[a-z0-9]{4,16}$/
-const VERSIE = '2026-10-05-vacgesprek'
+const VERSIE = '2026-10-05-vacgesprek-perpersoon'
 
 const isVac = (naam) => String(naam || '').startsWith(VAC)
 const normDoc = (naam) => { try { return decodeURIComponent(String(naam || '')) } catch (_) { return String(naam || '') } }
@@ -222,7 +226,7 @@ const server = new Server({
   ],
 
   // JWT valideren (HS256, gedeeld geheim met PHP). Throw = connectie geweigerd.
-  async onAuthenticate({ token, documentName, requestParameters }) {
+  async onAuthenticate({ token, documentName, requestParameters, connectionConfig }) {
     const tlen = token ? String(token).length : 0
     // Fallback: token mag ook als query-param ?token= meekomen (sommige proxies leveren de
     // Hocuspocus-auth-message minder betrouwbaar af dan een URL-param).
@@ -239,12 +243,20 @@ const server = new Server({
       console.warn('[auth] JWT verify faalde:', e.message, '| secret-len', COLLAB_JWT_SECRET.length, '| token-len', tlen, '| param-len', lastAuth.paramLen)
       throw new Error('Not authorized')
     }
-    // Gespreksnotities: STRIKT. Een token voor een gesprek opent enkel dat gesprek, en een
-    // gesprek opent enkel met een token dat ervoor uitgegeven is (ook geen vergadertoken).
-    if ((isVac(documentName) || isVac(payload.doc)) && normDoc(payload.doc) !== normDoc(documentName)) {
-      lastAuth = { ok: false, docName: documentName, error: 'vac-doc-binding', ts: new Date().toISOString() }
-      console.warn('[auth] gesprek-doc geweigerd:', JSON.stringify(payload.doc), 'vs', JSON.stringify(documentName))
-      throw new Error('Not authorized')
+    // Gespreksnotities: STRIKT. Token "vacgesprek:<id>" opent enkel de documenten van dat gesprek
+    // ("vacgesprek:<id>:u<user>"); schrijven enkel in het eigen document, dat van een collega
+    // alleen-lezen. Geen enkel ander token opent een gesprek, een gesprekstoken opent niets anders.
+    if (isVac(documentName) || isVac(payload.doc)) {
+      const m = VAC_DOC.exec(normDoc(documentName))
+      if (!m || normDoc(payload.doc) !== `${VAC}${m[1]}`) {
+        lastAuth = { ok: false, docName: documentName, error: 'vac-doc-binding', ts: new Date().toISOString() }
+        console.warn('[auth] gesprek-doc geweigerd:', JSON.stringify(payload.doc), 'vs', JSON.stringify(documentName))
+        throw new Error('Not authorized')
+      }
+      const eigen = String(payload.sub) === m[2]
+      if (!eigen && connectionConfig) connectionConfig.readOnly = true
+      lastAuth = { ok: true, docName: documentName, name: payload.name, readOnly: !eigen, ts: new Date().toISOString() }
+      return { user: { id: payload.sub, name: payload.name || 'Onbekend', color: payload.color || '#1182A4' } }
     }
     if (payload.doc && payload.doc !== documentName) {
       console.warn('[auth] doc-verschil (toegestaan):', JSON.stringify(payload.doc), 'vs', JSON.stringify(documentName))
