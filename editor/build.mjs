@@ -18,11 +18,25 @@ const opts = {
   legalComments: 'none',
 }
 
+// Sollicitatiegesprekken (Vacatures): één doc per gesprek, één kleine editor per vraag.
+// Naam zonder ".min": het portaal negeert *.min.js in git, dit bestand moet mee met de deploy.
+const gesprek = {
+  ...opts,
+  entryPoints: ['src/gesprek.js'],
+  globalName: 'VacGesprekCollab',
+  sourcemap: false,
+  outfile: 'dist/vac-gesprek-collab.bundle.js',
+}
+
 if (process.argv.includes('--watch')) {
   const ctx = await esbuild.context(opts)
   await ctx.watch()
   console.log('[build] watching…')
+} else if (process.argv.includes('--gesprek')) {
+  await esbuild.build(gesprek)
+  console.log('[build] dist/vac-gesprek-collab.bundle.js geschreven')
 } else {
   await esbuild.build(opts)
-  console.log('[build] dist/mtg-collab-editor.min.js geschreven')
+  await esbuild.build(gesprek)
+  console.log('[build] dist/mtg-collab-editor.min.js + dist/vac-gesprek-collab.bundle.js geschreven')
 }
